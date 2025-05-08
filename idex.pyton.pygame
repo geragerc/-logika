@@ -1,0 +1,149 @@
+import pygame
+import random
+
+pygame.init()
+
+# Розміри вікна
+WIDTH, HEIGHT = 450, 450
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Арканоїд")
+clock = pygame.time.Clock()
+
+# Кольори
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+
+# Розміри платформи та м'яча
+PADDLE_WIDTH = 100
+PADDLE_HEIGHT = 10
+BALL_RADIUS = 10
+BRICK_WIDTH = 60
+BRICK_HEIGHT = 20
+
+# Шрифт
+FONT = pygame.font.SysFont("Arial", 24)
+
+class Paddle:
+    def __init__(self):
+        self.rect = pygame.Rect(WIDTH // 2 - PADDLE_WIDTH // 2, HEIGHT - 30, PADDLE_WIDTH, PADDLE_HEIGHT)
+        self.speed = 7
+
+    def update(self, keys):
+        if keys[pygame.K_LEFT] and self.rect.left > 0:
+            self.rect.x -= self.speed
+        if keys[pygame.K_RIGHT] and self.rect.right < WIDTH:
+            self.rect.x += self.speed
+
+    def change_width(self, delta):
+        center = self.rect.centerx
+        new_width = max(50, min(self.rect.width + delta, 200))
+        self.rect.width = new_width
+        self.rect.centerx = center
+
+class Ball:
+    def __init__(self):
+        self.radius = BALL_RADIUS
+        self.reset()
+
+    def reset(self):
+        self.x = WIDTH // 2
+        self.y = HEIGHT // 2
+        self.dx = 4 * random.choice([-1, 1])
+        self.dy = -4
+
+    def move(self):
+        self.x += self.dx
+        self.y += self.dy
+
+        # Відбиття від стін
+        if self.x - self.radius <= 0 or self.x + self.radius >= WIDTH:
+            self.dx *= -1
+        if self.y - self.radius <= 0:
+            self.dy *= -1
+
+    def draw(self):
+        pygame.draw.circle(screen, WHITE, (int(self.x), int(self.y)), self.radius)
+
+    @property
+    def rect(self):
+        return pygame.Rect(self.x - self.radius, self.y - self.radius, self.radius * 2, self.radius * 2)
+
+class Brick:
+    def __init__(self, x, y, special=False):
+        self.rect = pygame.Rect(x, y, BRICK_WIDTH, BRICK_HEIGHT)
+        self.special = special
+        self.color = GREEN if special else RED
+        self.drop_buff = random.random() < 0.25 or special
+
+    def draw(self):
+        pygame.draw.rect(screen, self.color, self.rect)
+        pygame.draw.rect(screen, WHITE, self.rect, 2)
+
+def spawn_bricks():
+    global bricks
+    bricks = []
+    rows = 5
+    cols = WIDTH // (BRICK_WIDTH + 10)
+    for row in range(rows):
+        for col in range(cols):
+            x = col * (BRICK_WIDTH + 10) + 35
+            y = row * (BRICK_HEIGHT + 10) + 50
+            is_special = random.random() < 0.15
+            brick = Brick(x, y, special=is_special)
+            bricks.append(brick)
+
+paddle = Paddle()
+ball = Ball()
+bricks = []
+spawn_bricks()
+
+level = 1
+lives = 3
+
+running = True
+while running:
+    clock.tick(60)
+    screen.fill((0, 0, 0))  # Заповнюємо екран чорним кольором
+    keys = pygame.key.get_pressed()
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    paddle.update(keys)  # Оновлення платформи
+    ball.move()
+
+    # Перевірка на зіткнення з платформою
+    if ball.rect.colliderect(paddle.rect):
+        ball.dy *= -1
+        ball.y = paddle.rect.top - ball.radius
+
+    # Перевірка на зіткнення з цеглинками
+    for brick in bricks[:]:
+        if ball.rect.colliderect(brick.rect):
+            bricks.remove(brick)
+            ball.dy *= -1
+            break
+
+    if ball.y - ball.radius > HEIGHT:  # Якщо м'яч впав, зменшуємо кількість життів
+        lives -= 1
+        ball.reset()
+        if lives <= 0:
+            running = False
+
+    if not bricks:
+        print("Перемога!")
+        running = False
+
+    pygame.draw.rect(screen, WHITE, paddle.rect)  # Малюємо платформу
+    ball.draw()
+    for brick in bricks:
+        brick.draw()
+
+    text = FONT.render(f"Рівень: {level} | Життя: {lives}", True, WHITE)
+    screen.blit(text, (10, 10))
+
+    pygame.display.flip()
+
+pygame.quit()
